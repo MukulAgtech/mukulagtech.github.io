@@ -3,19 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Animated Neon MUKUL</title>
+    <title>Interactive Dubai MUKUL</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #000;
+            font-family: Arial, sans-serif;
         }
         canvas {
             display: block;
         }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            z-index: 100;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #2196F3;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #282f44;
+        }
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
+    <div id="loading" class="loading">Loading Dubai Skyline...</div>
+    
+    <div id="controls">
+        <span id="mode-text">Night Mode</span>
+        <label class="toggle-switch">
+            <input type="checkbox" id="mode-toggle" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // Initialize Three.js scene
@@ -25,196 +101,434 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Set camera position
-        camera.position.z = 30;
+        // Set camera position based on device
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+            camera.position.z = 50; // Further back for mobile
+        } else {
+            camera.position.z = 30;
+        }
+        camera.position.y = 5;
 
-        // Create buildings background
-        function createBuildings() {
+        // Global variables for day/night mode
+        let isNightMode = true;
+        let skyColor = new THREE.Color(0x0a0a20); // Night sky color
+        let buildings;
+        let neonText;
+        let lights = [];
+
+        // Initialize scene
+        function init() {
+            // Set initial background
+            scene.background = skyColor;
+            
+            // Create Dubai-style buildings
+            buildings = createDubaiBuildings();
+            scene.add(buildings);
+            
+            // Create neon text
+            neonText = createNeonText();
+            scene.add(neonText);
+            
+            // Add lighting
+            setupLighting();
+            
+            // Hide loading screen after everything is loaded
+            document.getElementById('loading').style.display = 'none';
+            
+            // Start animation
+            animate();
+        }
+
+        // Create Dubai-style buildings
+        function createDubaiBuildings() {
             const buildingGroup = new THREE.Group();
             
-            // Create buildings with different heights
-            for (let i = 0; i < 20; i++) {
-                const width = 3;
-                const height = 5 + Math.random() * 15; // Random building height
-                const depth = 3;
+            // Create iconic buildings
+            
+            // Burj Khalifa (tallest building)
+            const burjKhalifa = createTallBuilding(0, 0, 0, 5, 40, 5, 0x90a4ae);
+            burjKhalifa.position.set(0, -5, -15);
+            buildingGroup.add(burjKhalifa);
+            
+            // Create surrounding skyscrapers
+            for (let i = 0; i < 30; i++) {
+                const width = 3 + Math.random() * 3;
+                const height = 5 + Math.random() * 25;
+                const depth = 3 + Math.random() * 3;
                 
-                const geometry = new THREE.BoxGeometry(width, height, depth);
+                let x = -40 + Math.random() * 80;
+                // Don't place buildings too close to Burj Khalifa
+                if (x > -8 && x < 8) {
+                    if (x > 0) x += 8;
+                    else x -= 8;
+                }
                 
-                // Create random window lights effect
-                const material = new THREE.MeshPhongMaterial({ 
-                    color: 0x101020,
-                    emissive: 0x101020,
-                    specular: 0x111111,
-                    shininess: 30
-                });
+                const z = -30 - Math.random() * 20;
                 
-                const building = new THREE.Mesh(geometry, material);
-                
-                // Position buildings in background
-                building.position.x = -30 + i * 3;
-                building.position.y = -10;
-                // Vary Z position slightly
-                building.position.z = -5 - Math.random() * 5;
-                
-                // Store original building properties for animation
-                building.userData = {
-                    originalEmissive: material.emissive.clone(),
-                    blinkSpeed: 0.5 + Math.random() * 2,
-                    timeOffset: Math.random() * Math.PI * 2
-                };
-                
+                const building = createSkyscraper(x, -5, z, width, height, depth);
                 buildingGroup.add(building);
             }
+            
+            // Add ground plane
+            const groundGeometry = new THREE.PlaneGeometry(200, 100);
+            const groundMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x1a1a1a,
+                side: THREE.DoubleSide
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = Math.PI / 2;
+            ground.position.y = -5;
+            ground.position.z = -20;
+            buildingGroup.add(ground);
             
             return buildingGroup;
         }
         
-        // Create the neon text
+        // Create a detailed tall building (like Burj Khalifa)
+        function createTallBuilding(x, y, z, width, height, depth, color) {
+            const group = new THREE.Group();
+            
+            // Main structure - tapered tower
+            for (let i = 0; i < 5; i++) {
+                const sectionHeight = height / 5;
+                const sectionWidth = width * (1 - i * 0.15);
+                const sectionDepth = depth * (1 - i * 0.15);
+                
+                const geometry = new THREE.BoxGeometry(sectionWidth, sectionHeight, sectionDepth);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: color,
+                    specular: 0xffffff,
+                    shininess: 30
+                });
+                
+                const section = new THREE.Mesh(geometry, material);
+                section.position.y = y + i * sectionHeight;
+                
+                group.add(section);
+            }
+            
+            // Add spire
+            const spireGeometry = new THREE.CylinderGeometry(0, 0.5, height * 0.2, 8);
+            const spireMaterial = new THREE.MeshPhongMaterial({ color: 0xb0bec5 });
+            const spire = new THREE.Mesh(spireGeometry, spireMaterial);
+            spire.position.y = y + height;
+            group.add(spire);
+            
+            // Position the whole building
+            group.position.set(x, y, z);
+            
+            return group;
+        }
+        
+        // Create a modern skyscraper
+        function createSkyscraper(x, y, z, width, height, depth) {
+            const group = new THREE.Group();
+            
+            // Generate a random style for variety
+            const style = Math.floor(Math.random() * 4);
+            let color;
+            
+            // Choose colors that match Dubai's modern architecture
+            if (Math.random() > 0.5) {
+                color = 0xb0bec5; // Silver/glass
+            } else {
+                const goldColors = [0xd4af37, 0xffd700, 0xbdb76b];
+                color = goldColors[Math.floor(Math.random() * goldColors.length)];
+            }
+            
+            // Create main structure based on style
+            let geometry, material, building;
+            
+            switch(style) {
+                case 0: // Regular box building
+                    geometry = new THREE.BoxGeometry(width, height, depth);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: color,
+                        specular: 0x111111,
+                        shininess: 30
+                    });
+                    building = new THREE.Mesh(geometry, material);
+                    building.position.y = y + height/2;
+                    group.add(building);
+                    break;
+                    
+                case 1: // Tiered building
+                    for (let i = 0; i < 3; i++) {
+                        const tierHeight = height * (0.5 - i * 0.1);
+                        const tierWidth = width * (1 - i * 0.2);
+                        const tierDepth = depth * (1 - i * 0.2);
+                        
+                        geometry = new THREE.BoxGeometry(tierWidth, tierHeight, tierDepth);
+                        material = new THREE.MeshPhongMaterial({ 
+                            color: color, 
+                            specular: 0x111111,
+                            shininess: 30
+                        });
+                        const tier = new THREE.Mesh(geometry, material);
+                        tier.position.y = y + i * tierHeight + tierHeight/2;
+                        group.add(tier);
+                    }
+                    break;
+                    
+                case 2: // Twisted building
+                    geometry = new THREE.BoxGeometry(width, height, depth, 1, 10, 1);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: color,
+                        specular: 0x111111,
+                        shininess: 30
+                    });
+                    building = new THREE.Mesh(geometry, material);
+                    
+                    // Create twisted effect
+                    const positionAttribute = geometry.getAttribute('position');
+                    const vertex = new THREE.Vector3();
+                    
+                    for (let i = 0; i < positionAttribute.count; i++) {
+                        vertex.fromBufferAttribute(positionAttribute, i);
+                        
+                        // Apply twist based on height
+                        const twistAmount = (vertex.y / height) * Math.PI * 0.2;
+                        const xNew = vertex.x * Math.cos(twistAmount) - vertex.z * Math.sin(twistAmount);
+                        const zNew = vertex.x * Math.sin(twistAmount) + vertex.z * Math.cos(twistAmount);
+                        
+                        positionAttribute.setXYZ(i, xNew, vertex.y, zNew);
+                    }
+                    
+                    geometry.computeVertexNormals();
+                    building.position.y = y + height/2;
+                    group.add(building);
+                    break;
+                    
+                case 3: // Curved top building
+                    // Main body
+                    geometry = new THREE.BoxGeometry(width, height * 0.8, depth);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: color,
+                        specular: 0x111111,
+                        shininess: 30
+                    });
+                    building = new THREE.Mesh(geometry, material);
+                    building.position.y = y + height * 0.4;
+                    group.add(building);
+                    
+                    // Curved top
+                    const topGeometry = new THREE.SphereGeometry(width/2, 16, 16, 0, Math.PI*2, 0, Math.PI/2);
+                    const topMaterial = new THREE.MeshPhongMaterial({ 
+                        color: color,
+                        specular: 0x111111,
+                        shininess: 30
+                    });
+                    const top = new THREE.Mesh(topGeometry, topMaterial);
+                    top.position.y = y + height * 0.8;
+                    group.add(top);
+                    break;
+            }
+            
+            // Add windows for night lighting
+            const windows = createWindows(width, height, depth);
+            windows.position.set(0, 0, 0);
+            group.add(windows);
+            
+            // Position the whole building
+            group.position.set(x, y, z);
+            
+            return group;
+        }
+        
+        // Create windows for buildings
+        function createWindows(width, height, depth) {
+            const group = new THREE.Group();
+            
+            // Calculate number of windows based on building size
+            const numFloorsY = Math.floor(height / 2);
+            const numWindowsX = Math.floor(width / 1);
+            const numWindowsZ = Math.floor(depth / 1);
+            
+            // Create window material - will be visible mainly at night
+            const windowMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff99,
+                transparent: true,
+                opacity: 0.1 // Start with low opacity for day mode
+            });
+            
+            // Store the material for day/night toggle
+            windowMaterial.userData = { isWindow: true };
+            
+            // Add windows to all sides of the building
+            for (let y = 0; y < numFloorsY; y++) {
+                const yPos = y * 2 - height/2 + 1;
+                
+                // Front and back sides
+                for (let x = 0; x < numWindowsX; x++) {
+                    if (Math.random() > 0.3) { // Random window pattern
+                        const xPos = x * 1 - width/2 + 0.5;
+                        
+                        // Front windows
+                        const frontWindowGeometry = new THREE.PlaneGeometry(0.6, 0.8);
+                        const frontWindow = new THREE.Mesh(frontWindowGeometry, windowMaterial);
+                        frontWindow.position.set(xPos, yPos, depth/2 + 0.01);
+                        group.add(frontWindow);
+                        
+                        // Back windows
+                        const backWindow = frontWindow.clone();
+                        backWindow.rotation.y = Math.PI;
+                        backWindow.position.z = -depth/2 - 0.01;
+                        group.add(backWindow);
+                    }
+                }
+                
+                // Left and right sides
+                for (let z = 0; z < numWindowsZ; z++) {
+                    if (Math.random() > 0.3) { // Random window pattern
+                        const zPos = z * 1 - depth/2 + 0.5;
+                        
+                        // Left windows
+                        const leftWindowGeometry = new THREE.PlaneGeometry(0.6, 0.8);
+                        const leftWindow = new THREE.Mesh(leftWindowGeometry, windowMaterial);
+                        leftWindow.rotation.y = -Math.PI/2;
+                        leftWindow.position.set(-width/2 - 0.01, yPos, zPos);
+                        group.add(leftWindow);
+                        
+                        // Right windows
+                        const rightWindow = leftWindow.clone();
+                        rightWindow.rotation.y = Math.PI/2;
+                        rightWindow.position.x = width/2 + 0.01;
+                        group.add(rightWindow);
+                    }
+                }
+            }
+            
+            return group;
+        }
+
+        // Create the neon text for "MUKUL"
         function createNeonText() {
+            const letters = "MUKUL";
+            const letterSpacing = isMobile ? 4 : 5;
             const textGroup = new THREE.Group();
             
-            // M
-            const mGroup = createLetterM(-12, 0);
-            // U
-            const uGroup = createLetterU(-5, 0);
-            // K
-            const kGroup = createLetterK(2, 0);
-            // U
-            const uGroup2 = createLetterU(9, 0);
-            // L
-            const lGroup = createLetterL(16, 0);
+            // Calculate total width to center the text
+            const totalWidth = letters.length * letterSpacing;
+            const startX = -totalWidth / 2 + letterSpacing / 2;
             
-            textGroup.add(mGroup, uGroup, kGroup, uGroup2, lGroup);
-            
-            // Store the letter groups for animation
-            textGroup.userData = {
-                letters: [mGroup, uGroup, kGroup, uGroup2, lGroup]
-            };
+            // Create each letter as a 3D object
+            for (let i = 0; i < letters.length; i++) {
+                const letter = letters[i];
+                const letterGroup = createNeonLetter(letter);
+                
+                // Position letter
+                letterGroup.position.x = startX + i * letterSpacing;
+                letterGroup.position.y = 10;
+                letterGroup.position.z = 0;
+                
+                // Store original properties for animation
+                letterGroup.userData = {
+                    originalY: letterGroup.position.y,
+                    originalRotation: letterGroup.rotation.y,
+                    pulseSpeed: 1 + Math.random() * 0.5,
+                    floatSpeed: 0.5 + Math.random() * 0.3,
+                    timeOffset: Math.random() * Math.PI * 2
+                };
+                
+                textGroup.add(letterGroup);
+            }
             
             return textGroup;
         }
         
-        // Letter creation functions
-        function createLetterM(x, y) {
+        // Create individual neon letters using cube geometry for simplicity and performance
+        function createNeonLetter(letter) {
             const group = new THREE.Group();
             
-            // Create M using Lines with neon material
-            const neonMaterial = createNeonMaterial(0x00ffff);
-            
-            // M vertical lines
-            const leftLine = createNeonLine(x-2, y-5, x-2, y+5, neonMaterial);
-            const rightLine = createNeonLine(x+2, y-5, x+2, y+5, neonMaterial);
-            
-            // M diagonal lines
-            const diagLeft = createNeonLine(x-2, y+5, x, y, neonMaterial);
-            const diagRight = createNeonLine(x, y, x+2, y+5, neonMaterial);
-            
-            group.add(leftLine, rightLine, diagLeft, diagRight);
-            group.position.set(x, y, 0);
-            
-            return group;
-        }
-        
-        function createLetterU(x, y) {
-            const group = new THREE.Group();
-            
-            // Create U using Lines with neon material
-            const neonMaterial = createNeonMaterial(0x00ffff);
-            
-            // U shape
-            const leftLine = createNeonLine(x-2, y+5, x-2, y-3, neonMaterial);
-            const bottomLine = createNeonLine(x-2, y-3, x+2, y-3, neonMaterial);
-            const rightLine = createNeonLine(x+2, y-3, x+2, y+5, neonMaterial);
-            
-            group.add(leftLine, bottomLine, rightLine);
-            group.position.set(x, y, 0);
-            
-            return group;
-        }
-        
-        function createLetterK(x, y) {
-            const group = new THREE.Group();
-            
-            // Create K using Lines with neon material
-            const neonMaterial = createNeonMaterial(0x00ffff);
-            
-            // K shape
-            const vertLine = createNeonLine(x-2, y-5, x-2, y+5, neonMaterial);
-            const diagUp = createNeonLine(x-2, y, x+2, y+5, neonMaterial);
-            const diagDown = createNeonLine(x-2, y, x+2, y-5, neonMaterial);
-            
-            group.add(vertLine, diagUp, diagDown);
-            group.position.set(x, y, 0);
-            
-            return group;
-        }
-        
-        function createLetterL(x, y) {
-            const group = new THREE.Group();
-            
-            // Create L using Lines with neon material
-            const neonMaterial = createNeonMaterial(0x00ffff);
-            
-            // L shape
-            const vertLine = createNeonLine(x-2, y+5, x-2, y-5, neonMaterial);
-            const horizLine = createNeonLine(x-2, y-5, x+2, y-5, neonMaterial);
-            
-            group.add(vertLine, horizLine);
-            group.position.set(x, y, 0);
-            
-            return group;
-        }
-        
-        // Create neon material
-        function createNeonMaterial(color) {
-            return new THREE.LineBasicMaterial({ 
-                color: color,
-                linewidth: 3
+            // Create neon material
+            const neonMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x00ffff,
+                emissive: 0x00ffff,
+                emissiveIntensity: 1
             });
-        }
-        
-        // Create a neon line
-        function createNeonLine(x1, y1, x2, y2, material) {
-            const points = [];
-            points.push(new THREE.Vector3(x1, y1, 0));
-            points.push(new THREE.Vector3(x2, y2, 0));
             
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            // Store for day/night toggle
+            neonMaterial.userData = { isNeon: true };
             
-            return new THREE.Line(geometry, material);
+            // Create letter shapes using boxes
+            // Simplified letter shapes made of boxes
+            switch(letter) {
+                case 'M':
+                    // Vertical bars
+                    addBox(group, -1, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    addBox(group, 1, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    // Diagonal parts
+                    addBox(group, -0.5, 0, 0, 0.5, 2.5, 0.5, neonMaterial).rotation.z = -Math.PI/6;
+                    addBox(group, 0.5, 0, 0, 0.5, 2.5, 0.5, neonMaterial).rotation.z = Math.PI/6;
+                    break;
+                case 'U':
+                    // Vertical bars
+                    addBox(group, -1, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    addBox(group, 1, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    // Bottom part
+                    addBox(group, 0, -1.5, 0, 2, 0.5, 0.5, neonMaterial);
+                    break;
+                case 'K':
+                    // Vertical bar
+                    addBox(group, -1, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    // Diagonal parts
+                    addBox(group, 0.5, 0.75, 0, 0.5, 2, 0.5, neonMaterial).rotation.z = Math.PI/4;
+                    addBox(group, 0.5, -0.75, 0, 0.5, 2, 0.5, neonMaterial).rotation.z = -Math.PI/4;
+                    break;
+                case 'L':
+                    // Vertical bar
+                    addBox(group, -0.75, 0, 0, 0.5, 3, 0.5, neonMaterial);
+                    // Bottom part
+                    addBox(group, 0.25, -1.5, 0, 2, 0.5, 0.5, neonMaterial);
+                    break;
+            }
+            
+            return group;
         }
         
-        // Add buildings to scene
-        const buildings = createBuildings();
-        scene.add(buildings);
-        
-        // Add neon text to scene
-        const neonText = createNeonText();
-        scene.add(neonText);
-        
-        // Add neon glow with point lights
-        const letters = "MUKUL";
-        const letterPositions = [-12, -5, 2, 9, 16];
-        
-        for (let i = 0; i < letters.length; i++) {
-            const pointLight = new THREE.PointLight(0x00ffff, 0.5, 10);
-            pointLight.position.set(letterPositions[i], 0, 2);
-            pointLight.userData = {
-                baseIntensity: 0.5,
-                pulseSpeed: 1 + Math.random(),
-                timeOffset: Math.random() * Math.PI * 2
-            };
-            scene.add(pointLight);
+        // Helper function to add a box to a group
+        function addBox(group, x, y, z, width, height, depth, material) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            group.add(mesh);
+            return mesh;
         }
         
-        // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0x101010);
-        scene.add(ambientLight);
-        
-        // Add directional light
-        const directionalLight = new THREE.DirectionalLight(0x404040, 0.5);
-        directionalLight.position.set(0, 1, 1);
-        scene.add(directionalLight);
+        // Set up scene lighting
+        function setupLighting() {
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(
+                isNightMode ? 0x101010 : 0xffffff, 
+                isNightMode ? 0.2 : 0.7
+            );
+            scene.add(ambientLight);
+            lights.push(ambientLight);
+            
+            // Add directional light (sun/moon)
+            const sunMoon = new THREE.DirectionalLight(
+                isNightMode ? 0xaaaaff : 0xffffaa, 
+                isNightMode ? 0.3 : 1
+            );
+            sunMoon.position.set(0, 30, 10);
+            scene.add(sunMoon);
+            lights.push(sunMoon);
+            
+            // Add point lights for neon glow in night mode
+            if (isNightMode) {
+                const letters = "MUKUL";
+                const letterSpacing = isMobile ? 4 : 5;
+                const startX = -(letters.length * letterSpacing) / 2 + letterSpacing / 2;
+                
+                for (let i = 0; i < letters.length; i++) {
+                    const pointLight = new THREE.PointLight(0x00ffff, 0.8, 10);
+                    pointLight.position.set(startX + i * letterSpacing, 10, 1);
+                    scene.add(pointLight);
+                    lights.push(pointLight);
+                }
+            }
+        }
         
         // Animation loop
         let time = 0;
@@ -222,60 +536,181 @@
             requestAnimationFrame(animate);
             time += 0.01;
             
-            // Animate neon text - pulse effect
-            const letters = neonText.userData.letters;
-            letters.forEach((letter, i) => {
-                // Make each letter slightly float up and down
-                letter.position.y = Math.sin(time * 1.5 + i * 0.5) * 0.3;
-                
-                // Make each letter's neon glow pulse
-                letter.children.forEach(line => {
-                    const hue = (time * 10 + i * 20) % 360;
-                    line.material.color.setHSL(hue/360, 1, 0.5);
-                });
-            });
-            
-            // Animate point lights
-            scene.children.forEach(child => {
-                if (child.isPointLight) {
-                    const userData = child.userData;
-                    if (userData.baseIntensity) {
-                        // Pulse the intensity
-                        child.intensity = userData.baseIntensity + 
-                            Math.sin(time * userData.pulseSpeed + userData.timeOffset) * 0.3;
-                    }
-                }
-            });
-            
-            // Animate buildings with random window lights
-            buildings.children.forEach(building => {
-                if (Math.random() > 0.995) {
-                    // Randomly make windows "light up"
-                    const emissiveColor = new THREE.Color(0x303030 + Math.random() * 0x505050);
-                    building.material.emissive = emissiveColor;
+            // Only animate if component is mounted and visible
+            if (neonText) {
+                // Animate each letter
+                neonText.children.forEach((letter, index) => {
+                    const userData = letter.userData;
                     
-                    // Reset after a short delay
-                    setTimeout(() => {
-                        building.material.emissive = building.userData.originalEmissive;
-                    }, 100 + Math.random() * 500);
-                }
-            });
+                    // Floating motion
+                    letter.position.y = userData.originalY + Math.sin(time * userData.floatSpeed + userData.timeOffset) * 0.3;
+                    
+                    // Slight rotation
+                    letter.rotation.y = userData.originalRotation + Math.sin(time * userData.pulseSpeed) * 0.1;
+                    
+                    if (isNightMode) {
+                        // Find neon materials and update them
+                        letter.traverse(child => {
+                            if (child.isMesh && child.material.userData.isNeon) {
+                                // Pulse brightness
+                                const brightness = 0.8 + Math.sin(time * 2 + index) * 0.2;
+                                child.material.emissiveIntensity = brightness;
+                            }
+                        });
+                    }
+                });
+            }
             
-            // Slow camera movement
-            camera.position.x = Math.sin(time * 0.1) * 3;
+            // Animate buildings in night mode for window twinkling
+            if (isNightMode && buildings) {
+                buildings.traverse(child => {
+                    if (child.isMesh && child.material.userData.isWindow) {
+                        if (Math.random() > 0.995) {
+                            // Randomly make windows brighter
+                            child.material.opacity = 0.8 + Math.random() * 0.2;
+                            
+                            // Reset after a short delay
+                            setTimeout(() => {
+                                if (child.material) {
+                                    child.material.opacity = 0.1 + Math.random() * 0.3;
+                                }
+                            }, 200 + Math.random() * 500);
+                        }
+                    }
+                });
+            }
             
             renderer.render(scene, camera);
         }
         
-        // Start animation
-        animate();
+        // Toggle between day and night modes
+        function toggleDayNight() {
+            isNightMode = !isNightMode;
+            
+            // Update UI
+            document.getElementById('mode-text').textContent = isNightMode ? 'Night Mode' : 'Day Mode';
+            
+            // Change sky color
+            scene.background = isNightMode ? new THREE.Color(0x0a0a20) : new THREE.Color(0x87ceeb);
+            
+            // Update lighting
+            // Remove all existing lights
+            lights.forEach(light => {
+                scene.remove(light);
+            });
+            lights = [];
+            
+            // Reset all lighting
+            setupLighting();
+            
+            // Update materials
+            if (buildings) {
+                buildings.traverse(child => {
+                    if (child.isMesh) {
+                        // Update window materials
+                        if (child.material.userData.isWindow) {
+                            child.material.opacity = isNightMode ? 0.4 : 0.05;
+                        }
+                    }
+                });
+            }
+            
+            if (neonText) {
+                neonText.traverse(child => {
+                    if (child.isMesh && child.material.userData.isNeon) {
+                        child.material.opacity = isNightMode ? 1 : 0.3;
+                        child.material.emissiveIntensity = isNightMode ? 1 : 0.2;
+                    }
+                });
+            }
+        }
+        
+        // Set up event listeners for interactive controls
+        document.getElementById('mode-toggle').addEventListener('change', toggleDayNight);
+        
+        // Make scene interactive - rotate on drag
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        
+        document.addEventListener('mousedown', event => {
+            isDragging = true;
+        });
+        
+        document.addEventListener('mouseup', event => {
+            isDragging = false;
+        });
+        
+        document.addEventListener('mousemove', event => {
+            const deltaMove = {
+                x: event.clientX - previousMousePosition.x,
+                y: event.clientY - previousMousePosition.y
+            };
+            
+            if (isDragging) {
+                // Rotate scene based on mouse movement
+                const rotationSpeed = 0.005;
+                if (buildings) {
+                    buildings.rotation.y += deltaMove.x * rotationSpeed;
+                }
+            }
+            
+            previousMousePosition = {
+                x: event.clientX,
+                y: event.clientY
+            };
+        });
+        
+        // Touch events for mobile
+        document.addEventListener('touchstart', event => {
+            isDragging = true;
+            previousMousePosition = {
+                x: event.touches[0].clientX,
+                y: event.touches[0].clientY
+            };
+        });
+        
+        document.addEventListener('touchend', event => {
+            isDragging = false;
+        });
+        
+        document.addEventListener('touchmove', event => {
+            const deltaMove = {
+                x: event.touches[0].clientX - previousMousePosition.x,
+                y: event.touches[0].clientY - previousMousePosition.y
+            };
+            
+            if (isDragging) {
+                // Rotate scene based on touch movement
+                const rotationSpeed = 0.005;
+                if (buildings) {
+                    buildings.rotation.y += deltaMove.x * rotationSpeed;
+                }
+            }
+            
+            previousMousePosition = {
+                x: event.touches[0].clientX,
+                y: event.touches[0].clientY
+            };
+        });
         
         // Handle window resize
         window.addEventListener('resize', () => {
+            const isMobile = window.innerWidth < 768;
+            
+            // Update camera for mobile view
+            if (isMobile) {
+                camera.position.z = 50;
+            } else {
+                camera.position.z = 30;
+            }
+            
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+        
+        // Initialize the scene
+        init();
     </script>
 </body>
 </html>
